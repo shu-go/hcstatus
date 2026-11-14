@@ -17,7 +17,7 @@ type globalCmd struct {
 	Idle    idleCmd    `cli:"idle,i" help:"report waiting for the next instruction" usage:"hcstatus idle [MESSAGE...]"`
 	Done    doneCmd    `cli:"done,d" help:"report finished work the user has not seen yet" usage:"hcstatus done [MESSAGE...]"`
 	Error   errorCmd   `cli:"error,e" help:"report a failure" usage:"hcstatus error [MESSAGE...]"`
-	Clear   clearCmd   `cli:"clear,c" help:"remove a record and its children (all records without --id)" usage:"hcstatus clear [--id ID]"`
+	Clear   clearCmd   `cli:"clear,c" help:"remove a record and its children (all records without --id); under herdr, also reset the tab name" usage:"hcstatus clear [--id ID]"`
 	Exec    runCmd     `cli:"run,r" help:"run a command, reporting working -> done/error (idle if interrupted)" usage:"hcstatus run [OPTIONS] -- COMMAND [ARGS...]\nExits with the status of COMMAND."`
 
 	Out     string `cli:"out,o=DEST" default:"tty" help:"where to write: tty (default; bypasses redirection), stdout, stderr"`
@@ -63,6 +63,7 @@ type common struct {
 	App   string `cli:"app,a=NAME" help:"stable program name [A-Za-z0-9_.+-]{1,32}"`
 	Title string `cli:"title,t=TEXT" help:"short label, typically for child records (under herdr, i.e. $HC_TERMINAL_ID is set, also sent as the window title)"`
 	Msg   string `cli:"msg,m=TEXT" help:"one-line message (default: the arguments joined by spaces)"`
+	Tab   bool   `cli:"tab" help:"under herdr, also rename the herdr-app tab to --title (errors are ignored)"`
 }
 
 // report builds a Report from the common options. Free text is sanitized
@@ -90,7 +91,7 @@ type workingCmd struct {
 func (c workingCmd) Run(g *globalCmd, args []string) error {
 	r := c.report(osc7501.StateWorking, args)
 	r.Progress = c.Progress
-	return emitter{g}.emit(r)
+	return newEmitter(g, c.Tab).emit(r)
 }
 
 type blockedCmd struct {
@@ -103,25 +104,25 @@ func (c blockedCmd) Run(g *globalCmd, args []string) error {
 	r := c.report(osc7501.StateBlocked, args)
 	r.Kind = osc7501.Kind(c.Kind)
 	r.Progress = c.Progress
-	return emitter{g}.emit(r)
+	return newEmitter(g, c.Tab).emit(r)
 }
 
 type idleCmd struct{ common }
 
 func (c idleCmd) Run(g *globalCmd, args []string) error {
-	return emitter{g}.emit(c.report(osc7501.StateIdle, args))
+	return newEmitter(g, c.Tab).emit(c.report(osc7501.StateIdle, args))
 }
 
 type doneCmd struct{ common }
 
 func (c doneCmd) Run(g *globalCmd, args []string) error {
-	return emitter{g}.emit(c.report(osc7501.StateDone, args))
+	return newEmitter(g, c.Tab).emit(c.report(osc7501.StateDone, args))
 }
 
 type errorCmd struct{ common }
 
 func (c errorCmd) Run(g *globalCmd, args []string) error {
-	return emitter{g}.emit(c.report(osc7501.StateError, args))
+	return newEmitter(g, c.Tab).emit(c.report(osc7501.StateError, args))
 }
 
 type clearCmd struct {
@@ -132,7 +133,7 @@ func (c clearCmd) Run(g *globalCmd, args []string) error {
 	if len(args) != 0 {
 		return fmt.Errorf("clear takes no arguments (got %q)", args)
 	}
-	return emitter{g}.emit(osc7501.Report{State: osc7501.StateClear, ID: c.ID})
+	return newEmitter(g, false).emit(osc7501.Report{State: osc7501.StateClear, ID: c.ID})
 }
 
 // exitCode is set by commands that must propagate a specific exit status.

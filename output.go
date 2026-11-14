@@ -7,28 +7,61 @@ import (
 	"github.com/shu-go/hcstatus/osc7501"
 )
 
-// herdrTerminalEnv is set by herdr-core in terminals it runs. herdr-app's
-// agents list does not show OSC 7501 title/msg, but it does show the terminal
-// title (OSC 0/2), so there we also send --title as the window title.
-const herdrTerminalEnv = "HC_TERMINAL_ID"
-
 // emitter writes reports to the destination chosen by global options.
+//
+// Under herdr (HC_TERMINAL_ID is set), a report's title is also sent as the
+// window title (OSC 2), because herdr-app's agents list shows the terminal
+// title but not the OSC 7501 title/msg. With tab set, the herdr-app tab is
+// renamed to the title as well (once per emitter; failures are ignored).
 type emitter struct {
-	g *globalCmd
+	g   *globalCmd
+	tab bool
+
+	tabRenamed bool
 }
 
-func (e emitter) emit(r osc7501.Report) error {
-	seq, err := e.build(r, os.Getenv(herdrTerminalEnv) != "")
+func newEmitter(g *globalCmd, tab bool) *emitter {
+	return &emitter{g: g, tab: tab}
+}
+
+func (e *emitter) emit(r osc7501.Report) error {
+	terminal := herdrTerminal()
+	seq, err := e.build(r, terminal != "")
 	if err != nil {
 		return err
 	}
 
+	if err := e.write(seq); err != nil {
+		return err
+	}
+
+	if terminal != "" && !e.tabRenamed {
+		switch {
+		case r.State == osc7501.StateClear:
+			// clear resets the tab name (to its number) without --tab.
+			e.renameTab(terminal, "")
+		case e.tab && r.Title != "":
+			// Never an empty name here: that would reset the tab.
+			e.renameTab(terminal, r.Title)
+		}
+	}
+	return nil
+}
+
+func (e *emitter) renameTab(terminal, name string) {
+	e.tabRenamed = true
+	if err := renameHerdrTab(terminal, name); err != nil {
+		e.g.verbosef("hcstatus: tab not renamed: %v\n", err)
+	}
+}
+
+func (e *emitter) write(seq []byte) error {
 	switch e.g.Out {
 	case "stdout":
-		_, err = os.Stdout.Write(seq)
+		_, err := os.Stdout.Write(seq)
 		return err
 	case "stderr":
-		_, err = os.Stderr.Write(seq)
+		_, err := os.Stderr.Write(seq)
 		return err
 	case "tty", "":
 		f, closeFn, err := openTTY()
@@ -48,7 +81,7 @@ func (e emitter) emit(r osc7501.Report) error {
 
 // build returns the bytes to write: the OSC 7501 report, preceded by an
 // OSC 2 window title when withTitle is set and r has a title.
-func (e emitter) build(r osc7501.Report, withTitle bool) ([]byte, error) {
+func (e *emitter) build(r osc7501.Report, withTitle bool) ([]byte, error) {
 	term := osc7501.ST
 	if e.g.BEL {
 		term = osc7501.BEL

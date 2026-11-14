@@ -52,5 +52,6 @@ hcstatus --out stdout done "Build finished" | od -c   # inspect the bytes
 
 - Messages are sanitized: line breaks become spaces, other control characters are removed, text is truncated to the spec limits. Other violations (bad `--id`, `--app`, `--progress`, ...) are errors, because terminals silently drop invalid reports.
 - herdr: when `HC_TERMINAL_ID` is set, `--title` is also sent as the window title (OSC 2) before the report, because herdr-app's agents list shows the terminal title but not the OSC 7501 `title`/`msg`.
+  With `--tab` (all subcommands except `clear`), the herdr-app tab holding this terminal is also renamed to `--title` (`hc get` for the tab id, then `herdr-app do tab.rename`); any failure is ignored (`-v` shows why). A named tab shows its name instead of the window title in the agents list. `clear` resets the tab name (to its number) whenever `HC_TERMINAL_ID` is set, without `--tab`.
 - Claude Code hooks cannot send OSC 7501 (not in the `terminalSequence` allowlist, and hooks have no controlling terminal).
 - The `osc7501` package can be used on its own.

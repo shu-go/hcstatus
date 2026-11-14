@@ -28,7 +28,7 @@ func TestBuild(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := emitter{&tt.g}.build(tt.r, tt.withTitle)
+			got, err := newEmitter(&tt.g, false).build(tt.r, tt.withTitle)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -41,7 +41,7 @@ func TestBuild(t *testing.T) {
 
 func TestBuildInvalidSendsNothing(t *testing.T) {
 	g := globalCmd{Tmux: "off"}
-	if got, err := (emitter{&g}).build(osc7501.Report{State: "bad", Title: "t"}, true); err == nil || got != nil {
+	if got, err := newEmitter(&g, false).build(osc7501.Report{State: "bad", Title: "t"}, true); err == nil || got != nil {
 		t.Errorf("want error and no bytes, got %q, %v", got, err)
 	}
 }

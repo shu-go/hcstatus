@@ -24,7 +24,7 @@ func (c runCmd) Run(g *globalCmd, args []string) error {
 	if len(args) == 0 {
 		return errors.New("run needs a command: hcstatus run [OPTIONS] -- COMMAND [ARGS...]")
 	}
-	e := emitter{g}
+	e := newEmitter(g, c.Tab)
 
 	cmdline := osc7501.SanitizeText(strings.Join(args, " "), osc7501.MaxMsgDecoded)
 	if c.App == "" {
